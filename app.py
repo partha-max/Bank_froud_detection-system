@@ -1,11 +1,10 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import joblib
 
-# =========================================================
-# PAGE CONFIGURATION
-# =========================================================
+# =====================================================
+# PAGE CONFIG
+# =====================================================
 
 st.set_page_config(
     page_title="AI Banking Fraud Detection",
@@ -13,22 +12,21 @@ st.set_page_config(
     layout="wide"
 )
 
-# =========================================================
+# =====================================================
 # LOAD MODEL & SCALER
-# =========================================================
+# =====================================================
 
 try:
     model = joblib.load("fraud_model.pkl")
     scaler = joblib.load("scaler.pkl")
 
 except Exception as e:
-    st.error(f"❌ Error Loading Model Files: {e}")
-    st.info("Make sure fraud_model.pkl and scaler.pkl are inside your project folder.")
+    st.error(f"❌ Error Loading Files: {e}")
     st.stop()
 
-# =========================================================
+# =====================================================
 # CUSTOM CSS
-# =========================================================
+# =====================================================
 
 st.markdown("""
 <style>
@@ -48,7 +46,6 @@ st.markdown("""
     text-align: center;
     color: gray;
     font-size: 18px;
-    margin-bottom: 20px;
 }
 
 .stButton > button {
@@ -69,12 +66,12 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# =========================================================
+# =====================================================
 # TITLE
-# =========================================================
+# =====================================================
 
 st.markdown(
-    "<div class='title'>🏦 AI Banking Fraud Detection System</div>",
+    "<div class='title'>🏦 AI Banking Fraud Detection</div>",
     unsafe_allow_html=True
 )
 
@@ -85,22 +82,22 @@ st.markdown(
 
 st.divider()
 
-# =========================================================
+# =====================================================
 # INPUT SECTION
-# =========================================================
+# =====================================================
 
 col1, col2, col3 = st.columns(3)
 
-# =========================================================
+# =====================================================
 # COLUMN 1
-# =========================================================
+# =====================================================
 
 with col1:
 
     transaction_amount = st.number_input(
         "💰 Transaction Amount",
         min_value=0.0,
-        value=5000.0
+        value=1000.0
     )
 
     login_attempts = st.slider(
@@ -131,9 +128,9 @@ with col1:
         10.0
     )
 
-# =========================================================
+# =====================================================
 # COLUMN 2
-# =========================================================
+# =====================================================
 
 with col2:
 
@@ -170,20 +167,20 @@ with col2:
         5
     )
 
-# =========================================================
+# =====================================================
 # COLUMN 3
-# =========================================================
+# =====================================================
 
 with col3:
 
     geo_distance_km = st.number_input(
-        "🌍 Geo Distance (KM)",
+        "🌍 Geo Distance KM",
         min_value=0.0,
         value=10.0
     )
 
     session_duration_minutes = st.number_input(
-        "⌛ Session Duration",
+        "⌛ Session Duration Minutes",
         min_value=0.0,
         value=5.0
     )
@@ -205,9 +202,9 @@ with col3:
         ["OTP", "Biometric", "Password"]
     )
 
-# =========================================================
+# =====================================================
 # FLAGS SECTION
-# =========================================================
+# =====================================================
 
 st.subheader("🚩 Transaction Flags")
 
@@ -236,9 +233,9 @@ with flag3:
 
 st.divider()
 
-# =========================================================
-# PREDICT BUTTON
-# =========================================================
+# =====================================================
+# PREDICTION BUTTON
+# =====================================================
 
 if st.button("🔍 Predict Fraud"):
 
@@ -265,11 +262,9 @@ if st.button("🔍 Predict Fraud"):
             "Yes": 1
         }
 
-        # =================================================
-        # ENCODE VALUES
-        # =================================================
-
-        payment_channel_encoded = payment_channel_map[payment_channel]
+        payment_channel_encoded = payment_channel_map[
+            payment_channel
+        ]
 
         authentication_type_encoded = authentication_type_map[
             authentication_type
@@ -333,7 +328,10 @@ if st.button("🔍 Predict Fraud"):
             suspicious_encoded
         ]]
 
-        input_data = pd.DataFrame(values, columns=columns)
+        input_data = pd.DataFrame(
+            values,
+            columns=columns
+        )
 
         # =================================================
         # SCALE DATA
@@ -342,68 +340,66 @@ if st.button("🔍 Predict Fraud"):
         input_scaled = scaler.transform(input_data)
 
         # =================================================
-        # PREDICTION
+        # MODEL PREDICTION
         # =================================================
 
-        prediction = model.predict(input_scaled)[0]
-
-        # =================================================
-        # PROBABILITY
-        # =================================================
-
-        if hasattr(model, "predict_proba"):
-
-            probability = model.predict_proba(
+        try:
+            model_probability = model.predict_proba(
                 input_scaled
             )[0][1]
 
-        else:
-
-            # fallback probability
-            probability = 0.50
+        except:
+            model_probability = 0.0
 
         # =================================================
-        # CUSTOM RISK ANALYSIS
+        # CUSTOM FRAUD SCORE
         # =================================================
 
-        risk_score = (
-            transaction_amount / 2000 +
-            login_attempts * 2 +
-            device_risk_score +
-            anomaly_score +
-            failed_transactions_last_30d * 3 +
-            transaction_velocity_score
-        ) / 6
+        fraud_score = 0
+
+        if transaction_amount > 50000:
+            fraud_score += 20
+
+        if login_attempts > 5:
+            fraud_score += 15
+
+        if device_risk_score > 70:
+            fraud_score += 20
+
+        if anomaly_score > 70:
+            fraud_score += 20
+
+        if failed_transactions_last_30d > 5:
+            fraud_score += 10
+
+        if transaction_velocity_score > 70:
+            fraud_score += 15
+
+        if international_transaction_flag == "Yes":
+            fraud_score += 10
+
+        if suspicious_ip_flag == "Yes":
+            fraud_score += 20
+
+        if geo_distance_km > 1000:
+            fraud_score += 10
 
         # =================================================
-        # BOOST FRAUD PROBABILITY
+        # FINAL PROBABILITY
         # =================================================
 
-        if risk_score > 80:
-            probability = max(probability, 0.92)
+        probability = max(
+            model_probability * 100,
+            fraud_score
+        )
 
-        elif risk_score > 70:
-            probability = max(probability, 0.75)
-
-        elif risk_score > 50:
-            probability = max(probability, 0.45)
+        probability = min(probability, 99)
 
         # =================================================
         # FINAL PREDICTION
         # =================================================
 
-        if probability >= 0.5:
-            prediction = 1
-        else:
-            prediction = 0
-
-        st.divider()
-
-        # =================================================
-        # RESULT SECTION
-        # =================================================
-
-        if prediction == 1:
+        if probability >= 50:
 
             st.error("⚠️ FRAUDULENT TRANSACTION DETECTED")
 
@@ -411,9 +407,13 @@ if st.button("🔍 Predict Fraud"):
 
             st.success("✅ LEGITIMATE TRANSACTION")
 
+        # =================================================
+        # DISPLAY RESULT
+        # =================================================
+
         st.metric(
             "Fraud Probability",
-            f"{probability * 100:.2f}%"
+            f"{probability:.2f}%"
         )
 
         # =================================================
@@ -422,12 +422,10 @@ if st.button("🔍 Predict Fraud"):
 
         st.subheader("📈 Risk Analysis")
 
-        risk_percent = min(int(risk_score), 100)
-
-        st.progress(risk_percent)
+        st.progress(int(probability))
 
         st.write(
-            f"Overall Risk Score: {risk_score:.2f}/100"
+            f"Overall Risk Score: {probability:.2f}/100"
         )
 
     except Exception as e:
